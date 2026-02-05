@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>일일재고현황표_최종정밀재현</title>
+    <style>
+        :root { --line-color: #333; --blue-text: #0056b3; --orange-text: #cc6600; --green-bar: #99ff99; }
+        body { font-family: 'Malgun Gothic', sans-serif; background: #f4f4f4; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        
+        /* 전체 캔버스 설정 */
+        .paper { width: 1300px; background: white; padding: 40px; border: 1px solid #999; box-shadow: 0 0 10px rgba(0,0,0,0.1); position: relative; }
+        .header { text-align: center; margin-bottom: 50px; }
+        .header h1 { font-size: 38px; text-decoration: underline; letter-spacing: 20px; font-weight: 500; display: inline-block; }
+        .date { position: absolute; top: 100px; right: 40px; font-weight: bold; }
+
+        .silo-section { margin-bottom: 60px; }
+        .section-title { text-align: center; font-weight: bold; font-size: 20px; margin-bottom: 20px; }
+
+        /* 12열 수직 기둥 레이아웃 */
+        .grid-container { display: grid; grid-template-columns: repeat(12, 1fr); gap: 2px; }
+
+        /* 수직 기둥과 연결선 */
+        .column { display: flex; flex-direction: column; align-items: center; position: relative; }
+        /* 원본처럼 노드들을 관통하는 수직선 */
+        .column::before { 
+            content: ""; position: absolute; top: 20px; bottom: 20px; 
+            width: 1.5px; background: var(--line-color); z-index: 1; 
+        }
+
+        /* 노드 공통 */
+        .node { background: white; border: 1.5px solid var(--line-color); z-index: 2; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; line-height: 1.2; position: relative; }
+        
+        /* 원형 노드 (1, 3, 5행) - 서로 촘촘하게 배치 */
+        .circle { width: 92px; height: 92px; border-radius: 50%; border-color: var(--blue-text); margin: -5px 0; }
+        .circle .item { color: var(--blue-text); font-weight: bold; font-size: 13px; }
+        .circle .qty { font-size: 16px; font-weight: 900; }
+        .circle .loc { color: #88ac88; font-size: 11px; font-weight: bold; }
+
+        /* 사각형 노드 (2, 4행) - 높이를 키우고 중앙 배치 */
+        .rect { width: 85px; height: 52px; border-color: #666; margin: 10px 0; }
+        .rect .item { color: var(--orange-text); font-weight: bold; font-size: 11px; }
+        .rect .qty { font-size: 14px; font-weight: bold; }
+        .rect .loc { color: #88ac88; font-size: 10px; font-weight: bold; }
+
+        /* 특수 상태 강조 */
+        .zero { background-color: #ffeef2 !important; border-color: red !important; border-width: 2px !important; }
+        .zero * { color: red !important; }
+        .has-green-bar { border-bottom: 10px solid var(--green-bar) !important; }
+
+        /* 하단 입력창 구역 */
+        #dataInput { width: 1300px; height: 120px; margin-top: 30px; padding: 15px; border: 2px solid #0056b3; }
+        .hint { color: #666; font-size: 13px; margin-top: 5px; }
+    </style>
+</head>
+<body>
+
+<div class="paper">
+    <div class="date">2026-02-02</div>
+    <div class="header"><h1>일 일 재 고 현 황 표</h1></div>
+    <div id="content"></div>
+</div>
+
+<textarea id="dataInput" placeholder="여기에 엑셀 데이터를 붙여넣으세요 (장치장, 곡종, 재고량 순)"></textarea>
+<div class="hint">※ 엑셀의 데이터를 복사해서 넣으면 즉시 표가 업데이트됩니다.</div>
+
+<script>
+    const input = document.getElementById('dataInput');
+    const content = document.getElementById('content');
+
+    function updateDashboard() {
+        const rawData = input.value.split('\n').filter(line => line.trim() !== "");
+        const dataMap = {};
+
+        rawData.forEach(line => {
+            const parts = line.split(/\s+/);
+            if (parts.length >= 3) {
+                const loc = parts[0];
+                const item = parts[1];
+                const cleanQty = parts[2].replace(/,/g, '');
+                const qtyFormatted = parseFloat(cleanQty).toLocaleString();
+                dataMap[loc] = { item, qty: qtyFormatted, isZero: parseFloat(cleanQty) === 0 };
+            }
+        });
+
+        let html = '';
+        ['A', 'B'].forEach(section => {
+            html += `<div class="silo-section"><div class="section-title">싸이로 ${section}</div><div class="grid-container">`;
+            for (let col = 1; col <= 12; col++) {
+                html += `<div class="column">`;
+                for (let row = 1; row <= 5; row++) {
+                    const locId = `${section}${row}${col < 10 ? '0' + col : col}`;
+                    const d = dataMap[locId] || { item: '-', qty: '-', isZero: false };
+                    
+                    const isCircle = (row % 2 !== 0);
+                    const nodeClass = isCircle ? 'circle' : 'rect';
+                    const zeroClass = d.isZero ? 'zero' : '';
+                    
+                    // 특정 강조 위치 재현 (이미지 기반)
+                    const greenBarClass = ['A208', 'A407', 'B407'].includes(locId) ? 'has-green-bar' : '';
+
+                    html += `
+                        <div class="node ${nodeClass} ${zeroClass} ${greenBarClass}">
+                            <div class="item">${d.item}</div>
+                            <div class="qty">${d.qty}</div>
+                            <div class="loc">${locId}</div>
+                        </div>`;
+                }
+                html += `</div>`;
+            }
+            html += `</div></div>`;
+        });
+        content.innerHTML = html;
+    }
+    input.addEventListener('input', updateDashboard);
+</script>
+
+</body>
+</html>
